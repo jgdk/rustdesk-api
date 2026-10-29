@@ -4,7 +4,7 @@ Fork af [lejianwen/rustdesk-api](https://github.com/lejianwen/rustdesk-api) v2.7
 
 - **Branch `hitransform`** er vores hovedbranch. `master` holdes som ren kopi af upstream.
 - **Image:** `ghcr.io/jgdk/rustdesk-api:hitransform` (og `:hitransform-<sha>`), bygget af `.github/workflows/hitransform.yml` med vet, tests, govulncheck og Trivy. Kører hver mandag.
-- **Admin-UI** bygges fra vores fork `jgdk/rustdesk-api-web` på commit `3998c2a` (se `Dockerfile.hitransform`).
+- **Admin-UI** bygges fra vores fork `jgdk/rustdesk-api-web` på commit `9490475` (branch `hitransform`: engelsk standard, globus-ikon) (se `Dockerfile.hitransform`).
 
 ## Sikkerhedsgennemsyn (2026-10-29)
 
