@@ -1,6 +1,8 @@
 package service
 
 import (
+	crand "crypto/rand"
+	"encoding/hex"
 	"errors"
 	"math/rand"
 	"strconv"
@@ -90,7 +92,12 @@ func (us *UserService) GenerateToken(u *model.User) string {
 	if len(Jwt.Key) > 0 {
 		return Jwt.GenerateToken(u.Id)
 	}
-	return utils.Md5(u.Username + time.Now().String())
+	// hitransform: uden JWT-nøgle bruges 32 tilfældige bytes (crypto/rand) i stedet for MD5(navn+tid), som kunne gættes
+	b := make([]byte, 32)
+	if _, err := crand.Read(b); err != nil {
+		panic("crypto/rand fejlede: " + err.Error())
+	}
+	return hex.EncodeToString(b)
 }
 
 // Login 登录

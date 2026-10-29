@@ -8,7 +8,7 @@ ARG ALPINE_VERSION=3.24.3
 
 # 1) Admin-webgrænsefladen (rustdesk-api-web) fra en fast commit
 FROM node:${NODE_VERSION}-alpine AS web
-ARG WEB_REPO=https://github.com/lejianwen/rustdesk-api-web.git
+ARG WEB_REPO=https://github.com/jgdk/rustdesk-api-web.git
 ARG WEB_REF=3998c2a9213fcd047252776d0f0db33e6717026c
 RUN apk add --no-cache git
 WORKDIR /web

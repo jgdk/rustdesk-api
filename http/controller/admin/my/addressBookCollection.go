@@ -111,6 +111,8 @@ func (abc *AddressBookCollection) Update(c *gin.Context) {
 		response.Fail(c, 101, response.TranslateMsg(c, "NoAccess"))
 		return
 	}
+	// hitransform: ejeren kan ikke ændres via request-body (samlingen kunne ellers overdrages til en anden bruger)
+	f.UserId = u.Id
 
 	err := service.AllService.AddressBookService.UpdateCollection(f)
 	if err != nil {

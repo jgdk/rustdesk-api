@@ -344,8 +344,14 @@ func Migrate(version uint) {
 		}
 
 		// 生成随机密码
-		pwd := utils.RandomString(8)
-		global.Logger.Info("Admin Password Is: ", pwd)
+		pwd := utils.RandomString(16)
+		// hitransform: adgangskoden skrives ikke i loggen, men i en fil kun ejeren kan læse
+		pwdFile := "./data/initial-admin-password.txt"
+		if werr := os.WriteFile(pwdFile, []byte(pwd+"\n"), 0600); werr != nil {
+			global.Logger.Warn("Could not write initial admin password file; set one with: apimain reset-admin-pwd <pwd>")
+		} else {
+			global.Logger.Info("Initial admin password written to ", pwdFile, " (change it and delete the file)")
+		}
 		var err error
 		admin.Password, err = utils.EncryptPassword(pwd)
 		if err != nil {
