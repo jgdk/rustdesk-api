@@ -1,0 +1,92 @@
+# hitransform: test, sårbarhedstjek og eget Docker-image til ghcr.io/jgdk/rustdesk-api.
+# Kører ved push/PR til branchen hitransform, manuelt, og hver mandag (så nye CVE'er opdages).
+name: hitransform
+
+on:
+  push:
+    branches: [hitransform]
+  pull_request:
+    branches: [hitransform, master]
+  schedule:
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hitransform-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Moduler (låst af go.sum)
+        run: go mod download && go mod verify
+      - name: go vet
+        run: go vet ./...
+      - name: go test (Redis-tests kræver udviklerens egen Redis og springes over)
+        run: CGO_ENABLED=1 go test -skip 'Redis' ./...
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+  image:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/rustdesk-api
+          tags: |
+            type=raw,value=hitransform,enable=${{ github.ref == 'refs/heads/hitransform' }}
+            type=sha,prefix=hitransform-
+      - name: Byg (lokalt til scanning)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: Dockerfile.hitransform
+          platforms: linux/amd64
+          load: true
+          tags: rustdesk-api:scan
+          build-args: VERSION=hitransform-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Trivy (stop ved kritiske/høje fund med kendt rettelse)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: rustdesk-api:scan
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
+      - name: Log ind på GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: Dockerfile.hitransform
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: VERSION=hitransform-${{ github.sha }}
+          cache-from: type=gha

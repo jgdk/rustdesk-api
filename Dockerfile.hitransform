@@ -1,0 +1,42 @@
+# hitransform-build af rustdesk-api: alt bygges fra kilde, med låste versioner og uden root.
+# Bygges af .github/workflows/hitransform.yml. Lokalt:
+#   docker build -f Dockerfile.hitransform -t rustdesk-api:test .
+
+ARG GO_VERSION=1.27.3
+ARG NODE_VERSION=22
+ARG ALPINE_VERSION=3.24.3
+
+# 1) Admin-webgrænsefladen (rustdesk-api-web) fra en fast commit
+FROM node:${NODE_VERSION}-alpine AS web
+ARG WEB_REPO=https://github.com/lejianwen/rustdesk-api-web.git
+ARG WEB_REF=3998c2a9213fcd047252776d0f0db33e6717026c
+RUN apk add --no-cache git
+WORKDIR /web
+RUN git init -q && git remote add origin "$WEB_REPO" \
+ && git fetch -q --depth 1 origin "$WEB_REF" && git checkout -q FETCH_HEAD
+RUN npm ci --no-audit --no-fund && npm run build
+
+# 2) Go-binæren (CGO til sqlite), afhængigheder låst af go.sum
+FROM golang:${GO_VERSION}-alpine AS build
+RUN apk add --no-cache gcc musl-dev
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download && go mod verify
+COPY . .
+ARG VERSION=dev
+RUN CGO_ENABLED=1 go build -trimpath -ldflags "-s -w" -o /out/apimain ./cmd/apimain.go \
+ && mkdir -p /out/resources/admin /out/data /out/runtime \
+ && cp -r resources/. /out/resources/ && cp -r docs conf /out/ \
+ && echo "$VERSION" > /out/resources/version
+COPY --from=web /web/dist/ /out/resources/admin/
+
+# 3) Lille kørselsimage uden root
+FROM alpine:${ALPINE_VERSION}
+RUN apk add --no-cache tzdata ca-certificates \
+ && addgroup -S -g 10001 app && adduser -S -D -H -u 10001 -G app app
+WORKDIR /app
+COPY --from=build --chown=app:app /out/ /app/
+USER app
+VOLUME /app/data
+EXPOSE 21114
+CMD ["./apimain"]
